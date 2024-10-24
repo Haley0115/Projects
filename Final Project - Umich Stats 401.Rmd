@@ -1,0 +1,386 @@
+---
+title: "Appendices"
+author: "Group 34"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r packages, include = FALSE}
+# Load any packages you may need here
+library(ggplot2)
+library(gridExtra)
+options(repos = c(CRAN = "https://cloud.r-project.org"))
+install.packages("car")
+library(car)
+ # can use if you want to create side-by-side plots (like in Figure 5)
+```
+
+```{r readData, include = FALSE}
+# Save this template file in your final project's RStudio Project 
+# Edit this code chunk to read in your data
+
+cancer_mortality_rates <- read.csv("cancer_mortality_rates.csv")
+```
+
+------------------------------------------------------------------------
+
+#### PART 1 : Figure 1.1: Summary Ouput - Initial Model
+
+```{r figure1.1, echo = FALSE}
+# Be sure to use echo = FALSE in each code chunk to suppress your code! Your Appendices file should not include any code, just output!
+lm_initial <- lm(cmRate ~ medianAge + pctPoverty + pctBach + rmRace, data = cancer_mortality_rates)
+summary(lm_initial)
+```
+
+------------------------------------------------------------------------
+
+#### Figure 1.2: Residuals Plot - Initial Model
+
+```{r figure1.2, echo = FALSE}
+plot(lm_initial, which = 1)
+```
+
+------------------------------------------------------------------------
+
+#### Figure 1.3: QQ Plot of Residuals - Initial Model
+
+```{r figure1.3, echo = FALSE}
+# Notice that each code chunk is separated by a blank line, ***, and another blank line
+
+plot(lm_initial, which = 2)
+```
+
+------------------------------------------------------------------------
+
+#### Figure 1.4: Histogram - Initial Model (with a log transformation)
+
+```{r figure1.4, echo = FALSE}
+# Feel free to use grid.arrange (from the gridExtra package) to plot before and after plots next to each other (but you don't have to!) Here's an example if you're interested
+p1 <- ggplot(data = cancer_mortality_rates, aes(x = cmRate)) + 
+  geom_histogram(bins = 30, fill = "grey80", color = "black") + 
+  labs(title = "Histogram of cmRate",
+       subtitle = "by Stats 401 Group34",
+       x = "number of cancer mortalities per 100,000 people",
+       y = "Frequency")
+
+p2 <- ggplot(data = cancer_mortality_rates, aes(x = log(cmRate))) + 
+  geom_histogram(bins = 30, fill = "grey80", color = "black") + 
+  labs(title = "Histogram of cmRate",
+       subtitle = "by Stats 401 Group34",
+       x = "number of cancer mortalities per 100,000 people",
+       y = "Frequency")
+grid.arrange(p1, p2, nrow = 1, ncol = 2)
+
+
+p1 <- ggplot(data = cancer_mortality_rates, aes(x = medianAge)) + 
+  geom_histogram(bins = 30, fill = "grey80", color = "black") + 
+  labs(title = "Histogram of medianAge",
+       subtitle = "by Stats 401 Group34",
+       x = "number of cancer mortalities per 100,000 people",
+       y = "Frequency")
+
+p2 <- ggplot(data = cancer_mortality_rates, aes(x = log(medianAge))) + 
+  geom_histogram(bins = 30, fill = "grey80", color = "black") + 
+  labs(title = "Histogram of medianAge",
+       subtitle = "by Stats 401 Group34",
+       x = "number of cancer mortalities per 100,000 people",
+       y = "Frequency")
+grid.arrange(p1, p2, nrow = 1, ncol = 2)
+
+p1 <- ggplot(data = cancer_mortality_rates, aes(x = pctBach)) + 
+  geom_histogram(bins = 30, fill = "grey80", color = "black") + 
+  labs(title = "Histogram of pctBach",
+       subtitle = "by Stats 401 Group34",
+       x = "number of cancer mortalities per 100,000 people",
+       y = "Frequency")
+
+p2 <- ggplot(data = cancer_mortality_rates, aes(x = log(pctBach))) + 
+  geom_histogram(bins = 30, fill = "grey80", color = "black") + 
+  labs(title = "Histogram of pctBach",
+       subtitle = "by Stats 401 Group34",
+       x = "number of cancer mortalities per 100,000 people",
+       y = "Frequency")
+grid.arrange(p1, p2, nrow = 1, ncol = 2)
+
+
+p1 <- ggplot(data = cancer_mortality_rates, aes(x = pctPoverty)) + 
+  geom_histogram(bins = 30, fill = "grey80", color = "black") + 
+  labs(title = "Histogram of pctPoverty",
+       subtitle = "by Stats 401 Group34",
+       x = "number of cancer mortalities per 100,000 people",
+       y = "Frequency")
+
+p2 <- ggplot(data = cancer_mortality_rates, aes(x = log(pctPoverty))) + 
+  geom_histogram(bins = 30, fill = "grey80", color = "black") + 
+  labs(title = "Histogram of pctPoverty",
+       subtitle = "by Stats 401 Group34",
+       x = "number of cancer mortalities per 100,000 people",
+       y = "Frequency")
+grid.arrange(p1, p2, nrow = 1, ncol = 2)
+```
+
+------------------------------------------------------------------------
+
+#### Figure 1.5: Scatterplot Matrix of Data - Initial Model
+
+```{r figure1.5, echo = FALSE}
+plot(~ cmRate + medianAge + pctPoverty + pctBach + rmRace, data = cancer_mortality_rates)
+plot(~ cmRate + medianAge + log(pctPoverty) + log(pctBach) + rmRace, data = cancer_mortality_rates)
+```
+
+------------------------------------------------------------------------
+
+#### Figure 1.6: Scatterplot - Initial Model
+
+```{r figure1.6, echo = FALSE}
+p1 <- ggplot(data = cancer_mortality_rates, aes(x = pctPoverty, y = cmRate)) + 
+  
+  geom_point() + 
+  
+  labs(title = "Scatterplot of pctPoverty vs cmRate",
+       subtitle = "by Stats 34 group",
+       x = "percent of country living in poverty",
+       y = "number of cancer moralities per 100,000 people")
+
+p2 <- ggplot(data = cancer_mortality_rates, aes(x = log(pctPoverty), y = cmRate)) + 
+  
+  geom_point() + 
+  
+  labs(title = "Scatterplot of log(pctPoverty) vs cmRate",
+       subtitle = "by Stats 34 group",
+       x = "log(percent of country living in poverty)",
+       y = "number of cancer moralities per 100,000 people")
+grid.arrange(p1, p2, nrow = 1, ncol = 2)
+
+
+p1 <- ggplot(data = cancer_mortality_rates, aes(x = pctBach, y = cmRate)) + 
+  
+  geom_point() + 
+  
+  labs(title = "Scatterplot of pctBach vs cmRate",
+       subtitle = "by Stats 34 group",
+       x = "percent of county residents (ages 25+) with a bachelor’s degree",
+       y = "number of cancer moralities per 100,000 people")
+
+p2 <- ggplot(data = cancer_mortality_rates, aes(x = log(pctBach), y = cmRate)) + 
+  
+  geom_point() + 
+  
+  labs(title = "Scatterplot of log(pctBach) vs cmRate",
+       subtitle = "by Stats 34 group",
+       x = "log(percent of county residents (ages 25+) with a bachelor’s degree)",
+       y = "number of cancer moralities per 100,000 people")
+grid.arrange(p1, p2, nrow = 1, ncol = 2)
+```
+
+------------------------------------------------------------------------
+
+#### PART 2 : Figure 2.1 : Summary Ouput - Updated Model 1 (with log transformation)
+
+```{r figure2.1, echo = FALSE}
+lm_initial1 <- lm(cmRate ~ medianAge + log(pctPoverty) + log(pctBach) + rmRace , data = cancer_mortality_rates)
+summary(lm_initial1)
+```
+
+------------------------------------------------------------------------
+
+#### Figure 2.2: Residuals plot - Updated Model 1
+
+```{r figure2.2, echo = FALSE}
+plot(lm_initial1, which = 1)
+```
+
+------------------------------------------------------------------------
+
+#### Figure 2.3: QQ Plot of Residuals - Updated Model1
+
+```{r figure2.3, echo = FALSE}
+
+plot(lm_initial1, which = 2)
+```
+
+------------------------------------------------------------------------
+
+#### PART 3 : Figure 3.1: Scatterplot with Color - Initial Model
+
+```{r figure3.1, echo = FALSE}
+ggplot(data = cancer_mortality_rates, aes(x = pctBach, y = cmRate)) + 
+  
+  geom_point(aes(color = rmRace, shape = rmRace)) + 
+  
+  labs(title = "Scatterplot of pctBach vs cmRate",
+       subtitle = "group 34",
+       x = "percent of county residents (ages 25+) with a bachelor's degree ",
+       y = "number of cancer moralities per 100,000 people") + 
+  
+  scale_color_manual(values = c("darkblue", "orange")) +
+  scale_shape_manual(values = c(15, 16)) + 
+  
+  theme_bw() 
+
+ggplot(data = cancer_mortality_rates, aes(x = pctPoverty, y = cmRate)) + 
+  
+  geom_point(aes(color = rmRace, shape = rmRace)) + 
+  
+  labs(title = "Scatterplot of pctPoverty vs cmRate",
+       subtitle = "group 34",
+       x = "percent of country living in poverty ",
+       y = "number of cancer moralities per 100,000 people") + 
+  
+  scale_color_manual(values = c("darkblue", "orange")) +
+  scale_shape_manual(values = c(15, 16)) + 
+  
+  theme_bw() 
+
+ggplot(data = cancer_mortality_rates, aes(x = medianAge, y = cmRate)) + 
+  
+  geom_point(aes(color = rmRace, shape = rmRace)) + 
+  
+  labs(title = "Scatterplot of medianAge vs cmRate",
+       subtitle = "group 34",
+       x = "median age of country residents",
+       y = "number of cancer moralities per 100,000 people") + 
+  
+  scale_color_manual(values = c("darkblue", "orange")) +
+  scale_shape_manual(values = c(15, 16)) + 
+  
+  theme_bw() 
+```
+
+------------------------------------------------------------------------
+
+#### PART 4 : Figure 4.1 Updated Model 2 (remove rmRace and add region)
+
+```{r figure4.1, echo = FALSE}
+
+lm_initial2 <- lm(cmRate ~ medianAge + pctPoverty + pctBach + region, data = cancer_mortality_rates)
+summary(lm_initial2)
+```
+
+------------------------------------------------------------------------
+
+#### Figure 4.2: Residuals Plot - Updated Model2
+
+```{r figure4.2, echo = FALSE}
+plot(lm_initial2, which = 1)
+```
+
+------------------------------------------------------------------------
+
+#### Figure 4.3: QQ Plot of Residuals - Updated Model2
+
+```{r figure4.3, echo = FALSE}
+
+plot(lm_initial2, which = 2)
+```
+
+------------------------------------------------------------------------
+
+#### Figure 4.4: Scatterplot with Color - Updated Model2
+
+```{r figure4.4, echo = FALSE}
+# pctBach vs cmRate
+ggplot(data = cancer_mortality_rates, aes(x = pctBach, y = cmRate)) + 
+  geom_point(aes(color = region, shape = region)) + 
+  geom_smooth(aes(color = region), method = "lm", se = FALSE) +  
+  labs(title = "Scatterplot of pctBach vs cmRate",
+       subtitle = "group 34",
+       x = "percent of county residents (ages 25+) with a bachelor's degree ",
+       y = "number of cancer moralities per 100,000 people") + 
+  scale_color_manual(values = c("darkblue", "orange", "yellow", "green", "purple")) +
+  scale_shape_manual(values = c(15, 16, 17, 18, 19)) + 
+  theme_bw()
+
+# pctPoverty vs cmRate
+ggplot(data = cancer_mortality_rates, aes(x = pctPoverty, y = cmRate)) + 
+  geom_point(aes(color = region, shape = region)) + 
+  geom_smooth(aes(color = region), method = "lm", se = FALSE) +  
+  labs(title = "Scatterplot of pctPoverty vs cmRate",
+       subtitle = "group 34",
+       x = "percent of country living in poverty",
+       y = "number of cancer moralities per 100,000 people") + 
+  scale_color_manual(values = c("darkblue", "orange", "yellow", "green", "purple")) +
+  scale_shape_manual(values = c(15, 16, 17, 18, 19)) + 
+  theme_bw()
+
+# medianAge vs cmRate
+ggplot(data = cancer_mortality_rates, aes(x = medianAge, y = cmRate)) + 
+  geom_point(aes(color = region, shape = region)) + 
+  geom_smooth(aes(color = region), method = "lm", se = FALSE) +  
+  labs(title = "Scatterplot of medianAge vs cmRate",
+       subtitle = "group 34",
+       x = "median age of country residents",
+       y = "number of cancer moralities per 100,000 people") + 
+  scale_color_manual(values = c("darkblue", "orange", "yellow", "green", "purple")) +
+  scale_shape_manual(values = c(15, 16, 17, 18, 19)) + 
+  theme_bw()
+
+```
+
+------------------------------------------------------------------------
+
+#### Figure 4.5: Interaction - Updated Model2
+
+```{r figure4.5, echo = FALSE}
+lm_initial2 <- lm(cmRate ~ medianAge + pctPoverty + pctBach + region, data = cancer_mortality_rates)
+summary(lm_initial2)
+
+lm_interaction1 <- lm(cmRate ~ medianAge + pctPoverty + pctBach + region + region * medianAge, data = cancer_mortality_rates)
+summary(lm_interaction1)
+
+lm_interaction2 <- lm(cmRate ~ medianAge + pctPoverty + pctBach + region + region * pctPoverty, data = cancer_mortality_rates)
+summary(lm_interaction2)
+
+lm_interaction3 <- lm(cmRate ~ medianAge + pctPoverty + pctBach + region + region * pctBach, data = cancer_mortality_rates)
+summary(lm_interaction3)
+```
+
+------------------------------------------------------------------------
+
+#### PART 5 (Final Model) : Figure 5.1
+
+```{r figure5.1}
+
+lm_final <- lm(cmRate ~ medianAge + log(pctPoverty) + log(pctBach) + region + medianAge * region + log(pctPoverty) * region, data = cancer_mortality_rates)
+summary(lm_final)
+
+```
+
+------------------------------------------------------------------------
+
+#### Figure 5.2: Residuals Plot - final Model
+
+```{r figure5.2, echo = FALSE}
+plot(lm_final, which = 1)
+```
+
+------------------------------------------------------------------------
+
+#### Figure 5.3: QQ Plot of Residuals - Final Model
+
+```{r figure5.3, echo = FALSE}
+# Notice that each code chunk is separated by a blank line, ***, and another blank line
+
+plot(lm_final, which = 2)
+
+```
+
+------------------------------------------------------------------------
+
+#### Figure 5.4: VIF - Final Model
+
+```{r figure5.4, echo = FALSE}
+
+vif(lm(cmRate ~ medianAge + log(pctPoverty) + log(pctBach), data = cancer_mortality_rates))
+
+```
+
+------------------------------------------------------------------------
+
+#### Final Model - CMF
+
+$E(Y_{cmRate}|X) = \beta_0 + \beta_1 X_{medianAge} + \beta_2 log(X_{pctPoverty}) + \beta_3 log(X_{pctBach}) + \beta_4 I_{Northeast} + \beta_5 I_{Southeast} + \beta_6 I_{Southwest} + \beta_7 I_{West} + \beta_8 I_{Northeast} * X_{medianAge} + \beta_9 I_{Southeast} * X_{medianAge} + \beta_{10} I_{Southwest} * X_{medianAge} + \beta_{11} I_{West} * X_{medianAge} + \beta_{12} I_{Northeast} * log(X_{pctPoverty}) + \beta_{13} I_{Southeast} * log(X_{pctPoverty}) + \beta_{14} I_{Southwest} * log(X_{pctPoverty}) + \beta_{15} I_{West} * log(X_{pctPoverty})$
+
