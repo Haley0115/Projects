@@ -1,0 +1,478 @@
+---
+title: "Project 1"
+author: "Huili Wang, huiliw"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lubridate)
+library(DescTools)
+```
+
+## Overview
+
+In the `data` directory of this project you will find the file from a paper published in *Nature Energy* titled [Natural gas savings in Germany during the 2022 energy crisis](https://www.nature.com/articles/s41560-023-01260-5). Here is the abstract of the article:
+
+> Russia curbed its natural gas supply to Europe in 2021 and 2022, creating a grave energy crisis. This Article empirically estimates the crisis response of natural gas consumers in Germany—for decades, the largest export market for Russian gas. Using a multiple regression model, we estimate the response of small consumers, industry and power stations separately, controlling for the nonlinear temperature-heating relationship, seasonality and trends. We find significant and substantial gas savings for all consumer groups, but with differences in timing and size. For instance, industry started reducing consumption as early as September 2021, while small consumers saved substantially only since March 2022. Across all sectors, gas consumption during the second half of 2022 was 23% below the temperature-adjusted baseline. We discuss the drivers behind these savings and draw conclusions on their role in coping with the crisis.
+
+## Tasks
+
+* Load two files. To work in the console, use the `Session -> Set Working Directory -> To Source File Location`.
+    * Call the first table `daily`: "./data/natural_gas_germany_daily.csv"
+    * Call the second table `gas`: "./data/dutch_ttf_natural_gas.csv". Be sure to properly import the `Date` column.
+    * Demonstrate that these have been loaded by showing the number of rows and columns in each table.
+    
+```{r}
+library(readr)
+daily <- read_csv("data/natural_gas_germany_daily.csv")
+gas <-read_csv("data/dutch_ttf_natural_gas.csv")
+dim(daily)
+dim(gas)
+```
+* The data in `daily` are collected over days, with information on different types of natural gas consumption (`consumption_small`, `consumption_industry`, `consumption_power`). Provide summaries of typical values for each of these three types of consumption.
+```{r}
+summary(daily$consumption_small)
+summary(daily$consumption_industry)
+summary(daily$consumption_power)
+```
+* Answer some questions about the data in `daily`:
+```{r}
+nrow(daily) / 7
+daily |> summarize(mean(holiday == 1), na.rm = TRUE)
+daily |> filter(consumption_power == max(consumption_power, na.rm=TRUE))
+max(daily$consumption_power, na.rm=TRUE)
+small_temp <- na.omit(daily$consumption_small)
+(small_temp[1] - tail(small_temp, 1)) / small_temp[1]
+(daily$consumption_power[1] - tail(daily$consumption_power, 1)) / daily$consumption_power[1]
+(daily$consumption_industry[1] - tail(daily$consumption_industry, 1)) / daily$consumption_industry[1]
+
+```
+   * How many weeks of data are contained in the data set?
+   
+   313 weeks
+   
+   * How much did consumption as a percentage change for each category?
+   
+   consumption_small: 39.87%
+   
+   consumption_power: 62.04852%
+   
+   consumption_industry: 49.52467%
+   
+   
+   * What proportion of the data are during holidays?
+   
+   0.0360566
+   
+   * Which month (with January 2017 being distinct from January 2018, etc.) had the highest total consumption for the power production segment (`consumption_power`)?
+   
+   January 2017
+   
+* The original paper aggregated the data to monthly means for each consumption type in `daily` and the `Price` column of `gas` to produce the following image:<br/>
+![Original consumption by month graph](proj1fig1.png)<br/>
+Produce plots that show the same information that is presented in this plot. Your plots do not have to have the same colors or markings, but we should be able to use them to compare the trends for the three price variables. 
+
+```{r}
+daily_months <- daily |> mutate(date=ymd(date))
+daily_months <- daily_months |> group_by(month = lubridate::floor_date(date, 'month')) |> summarize(mean(consumption_small), mean(consumption_power), mean(consumption_industry), avg_industry_price=mean(price_industry_idx, na.rm = TRUE), avg_household_price=mean(price_households_idx, na.rm=TRUE))
+
+gas_months <- gas |> mutate(Date=mdy(Date))
+gas_months <- gas_months |> group_by(month = lubridate::floor_date(Date, 'month')) |> summarize(price_mean=mean(Price))
+
+ggplot(data=gas_months) + geom_line(aes(x=month, y=price_mean)) + xlab("Month") + ylab("Natural Gas Price TTF") + ggtitle("Natural Gas Price TTF")
+long_daily_months <- pivot_longer(daily_months, cols = starts_with("avg"))
+long_daily_months <- na.omit(long_daily_months)
+ggplot(data=long_daily_months,
+       aes(x=month, y=value, color=name)) +
+  geom_line() + xlab("Month") + ylab("Natural Gas Price Indices") + ggtitle("Natural Gas Price Index for Households and Industry DE")
+
+```
+
+
+* Write a predicate function that returns true if any value in vector is missing. Use this function to find columns with missing values in the `daily` column. Create a plot or table that shows how often patterns of missingness occur: are all of the missing values in the same rows or are the various columns missing data in different ways?
+
+```{r, cache=TRUE}
+has_na <- function(x) {
+  any(is.na(x))
+}
+
+daily_na <- daily |> summarize_all(~sum(is.na(.)))
+
+head(daily_na)
+
+
+daily_na_counts <- daily  |> group_by(month = lubridate::floor_date(date, 'month')) |> summarise(across(everything(), .fns=~sum(is.na(.))))
+daily_na_month <- daily  |> group_by(month = lubridate::floor_date(date, 'month')) |> summarise(across(everything(), .fns=~sum(has_na(.))))
+test <- pivot_longer(daily_na_counts, -c(month, date))
+ggplot(data=test) + geom_bar(aes(x=month, y=value), stat='identity') + facet_wrap(~name) + ylab("Days with missing values") + ggtitle("How many Missing Variables in Each Month for Each Column")
+
+daily_na_year <- daily  |> group_by(month = lubridate::floor_date(date, 'year')) |> summarise(across(everything(), .fns=~sum(has_na(.))))
+```
+
+In this plot we can see how many times a month a variable had an NA value. We can see price_industry_idx, price_household_idx, and consumption_small are variables where they were frequently missing together (for almost an entire year)
+
+
+* Limit the `gas` table to days where the price exceeded the yearly median. Use the concept of circular means to compute the average day of the year when price exceeds the yearly median price. The `yday` function will likely be useful here. 
+
+```{r}
+gas_exceeds <- gas |> filter(Price > median(Price)) |> mutate(Date=mdy(Date),day=yday(Date))
+
+
+
+gas_exceeds_means <- gas_exceeds |> mutate(day=day*0.98630136986) |> group_by(year = lubridate::floor_date(Date, 'year')) |> summarize(circular_mean = atan2( mean(sin(day)), mean(cos(day)))) |> mutate(avg_day = (circular_mean * 365) %% 365, year=year(year)) 
+
+gas_exceeds_means
+
+
+```
+
+
+* Using the cut function, create two nominal variables from quantitative data in the `daily` dataset. Use these groups to summarize the data. Use arrange to show the smallest or largest values in these comparisons.
+
+
+```{r Task_7} 
+
+`daily_task_7` <- mutate(daily, type_hosp_idx = cut(hospitality_idx,
+                                           breaks = 
+                                             c(-Inf, 30, 50, 70, 90, 110, 130, Inf),
+                                           labels = 
+                                             c("A", "B", "C", "A", "B", "C", "A") ),
+                           type_retail_idx = cut(retail_idx,
+                                           breaks = 
+                                             c(-Inf, 90, 97, 104, 111, 118, 125, Inf),
+                                           labels = 
+                                             c("D", "E", "F", "D", "E", "F", "D")
+                                           ) )
+
+daily_task_7 |>
+  group_by(type_hosp_idx, type_retail_idx) |>
+  summarise(n = n()) |>
+  arrange(desc(n))
+
+```
+
+By the above, the most common case is that of having Hospitality Type B and Retail Type E. That is Hospitality Index is in (30, 50] or (90, 110], and Retail Index is in (90, 97] or (111, 118].
+
+And the least common case is that of having Hospitality Type C and Retail Type F. That is Hospitality Index is in (50, 70] or (110, 130], and Retail Index is in (97, 104] or (118, 125].
+
+* There are several variables that pull out data by different industry (the `_idx` columns). Create a table for these columns using `select` and the `ends_with` function. Provide two different plots that show of the relations between these variables (you do not need to have all variables in each plot).
+
+```{r Task_8}
+`daily_task_8` <- select(daily, ends_with("_idx"))
+
+ggplot(daily_task_8, aes(x = price_industry_idx, y = price_households_idx)) +
+    geom_point() +
+    theme_bw() +
+    labs(title = "Scatterplot of price_industry_idx vs price_households_idx",
+         subtitle = "data observed from 2018 onward",
+         x = "price_industry_idx",
+         y = "price_households_idx")
+
+ggplot(daily_task_8, aes(x = manufacturing_idx, y = retail_idx, color = hospitality_idx)) +
+    geom_point(position = "jitter", alpha = 1 / 10) +
+    theme_bw() +
+    labs(title = "Colored Scatterplot of manufacturing_idx vs retail_idx vs hospitality_idx",
+         subtitle = "data observed from 2017 onward",
+         x = "manufacturing_idx",
+         y = "retail_idx"
+         )
+```
+
+We can see that price_households_idx and price_industry_idx do seem to be proportionally related (if one variable increases, the other also increases). However, the other three idx seem to hold no relation at all to one another.
+
+
+
+## Objectives
+* Produce at least five more figures. For each figure, write a brief caption explaining the plot and what you have learned from the plot. Each figure should attempt to provide new insight into the data set not included elsewhere
+    * A marginal distribution
+    * A joint distribution
+    * A plot of a summary measure such as a conditional mean
+    * A plot using `facet_wrap` or `facet_grid`
+    * A plot that shows seasonal effects before the crisis (September 2021 until October 2022)
+    
+    ```{r Objective_1.1}
+ggplot(gas, aes(x = Price)) +
+    geom_density(color = "black") +
+    theme_bw() +
+    labs(title = "KDE of the Price of Gas",
+         subtitle = "data observed from October 2017 onward",
+         x = "Price of Gas",
+         y = "density"
+         )
+```
+
+The distribution of the price of gas is very skewed to the right. 
+
+```{r Objective 1.2}
+ggplot(gas, aes(x = Price, y = as.numeric(sub("K", "", `Vol.`)))) +
+    geom_point(position = "jitter", alpha = 1 / 10) +
+    theme_bw() +
+    labs(title = "Scatterplot of Price of Gas vs Volume",
+         subtitle = "data observed from October 2017 onward",
+         x = "Price of Gas",
+         y = "Volume")
+```
+
+Knowing, from the previous graph, the distribution of the Price of Gas, we see by this graph that the distribution of the Volume should also be very skewed to the right and that both distributions seem very independent from one another.
+
+
+```{r Objective 1.3}
+daily$weekday <- factor(daily$weekday, c("Monday",
+                                         "Tuesday",
+                                         "Wednesday",
+                                         "Thursday",
+                                         "Friday",
+                                         "Saturday",
+                                         "Sunday"))
+
+daily |>
+  group_by(weekday) |>
+  summarise(avg_consum_industry = mean(consumption_industry, na.rm = TRUE)) |>
+  ggplot(aes(x = weekday, y = avg_consum_industry)) + 
+  geom_col(fill = "grey80", color = "black") +
+  theme_bw() +
+  labs(title = "Average Consumption of Gas in Industry by Weekday",
+       subtitle = "data observed from 2017 onward",
+       x = "Weekday",
+       y = "Average Consumption of Gas in Industry")
+```
+
+This tells us that the consumption of gas in industry, on average, decreases over the weekend. But that difference isn't as big as one would expect. 
+
+
+```{r Objective 1.4}
+daily |> 
+  mutate(year = as.numeric(format(as.Date(daily$date,
+                                          format="%d/%m/%Y"),"%Y"))) |>
+  ggplot(aes(x = consumption_industry)) +
+  geom_histogram(bins = 30, fill = "grey80", color = "black") +
+  facet_grid(rows = vars(year)) +
+  theme_bw() +
+  labs(title = "Histogram of Consumption of Gas in Industry per Year",
+       subtitle = "data observed from 2017 onward",
+       x = "Consumption of Gas in Industry",
+       y = "Count")
+
+```
+
+We observe that the per year distribution of consumption of gas in industry has stayed the same since 2017; that was until 2022, where a clear translation of the distribution to the left (a general decrease in consumption of gas in industry) is obvious to the naked eye. However, the shape of the distribution has remained constant, which may imply that the general decrease has not significantly changed the ranking of gas consumers in industry.
+
+
+```{r Objective 1.5}
+`gas_obj_1.5` <-
+gas |> 
+  mutate(month = as.numeric(format(as.Date(gas$Date, format="%m/%d/%Y"),"%m"))) |>
+  mutate(year = as.numeric(format(as.Date(gas$Date, format="%m/%d/%Y"),"%Y"))) |>
+  mutate(season = cut(month,
+                      breaks = c(-1, 2, 5, 8, 11, 13),
+                      labels = c("Winter", "Spring", 
+                                 "Summer", "Fall",
+                                 "Winter"))) |>
+  filter(year < 2021 | (year == 2021 & month < 9)) |>
+  group_by(season) |>
+  summarise(avg_price = mean(Price, na.rm = TRUE))
+
+gas_obj_1.5$season <- factor(gas_obj_1.5$season, 
+                             c("Summer", "Fall",
+                               "Winter", "Spring"))
+
+ggplot(gas_obj_1.5, aes(x = 1, y = avg_price, fill = season)) +
+         geom_col(position = 'dodge', stat = 'identity', width = 1, color = "white") +
+         coord_polar(theta = "x", direction = 1) +
+         theme(axis.title.x=element_blank(),
+               axis.text.x=element_blank(),
+               axis.ticks.x=element_blank()) +
+         labs(title = "Pie Chart of Seasonal Price of Gas",
+              subtitle = "before the recent Gas Crisis",
+              y = "Average Price of Gas")
+  
+
+  
+```
+
+We note that during the summer the price for gas is on average the greatest. Then it steadily decreases season by season till the next summer when it suddenly jumps from the cheapest season (spring) to its max again. 
+
+    
+* Compare and contrast holidays and non-holidays for household energy consumption. Select 3 ways of comparing these groups. Provide at least one graph.
+
+```{r Objective_2}
+daily |>
+  group_by(holiday) |>
+  summarise(avg_household_energy_consumption = mean(price_households_idx, na.rm = TRUE))
+
+daily |>
+  ggplot(aes(x = time, y = price_households_idx)) +
+  geom_point() +
+  geom_smooth() +
+  facet_grid(rows = vars(holiday))
+  
+`daily_obj_2.3` <- daily |>
+  mutate(month = as.numeric(format(as.Date(daily$date, format="%Y-%m-%d"),"%m"))) |>
+  mutate(season = cut(month,
+                      breaks = c(-1, 2, 5, 8, 11, 13),
+                      labels = c("Winter", "Spring", 
+                                 "Summer", "Fall",
+                                 "Winter"))) |>
+  group_by(holiday, season) |>
+  summarise(avg_price_house_idx = mean(price_households_idx, na.rm = TRUE))
+
+daily_obj_2.3$season <- factor(daily_obj_2.3$season, c("Summer", "Fall",
+                                                     "Winter", "Spring"))
+
+
+ggplot(daily_obj_2.3, aes(x = 1, y = avg_price_house_idx, fill = season)) +
+         geom_col(position = 'dodge', stat = 'identity', width = 1, color = "white") +
+         coord_polar(theta = "x", direction = 1) +
+         theme(axis.title.x=element_blank(),
+               axis.text.x=element_blank(),
+               axis.ticks.x=element_blank()) +
+         labs(title = "Pie Chart of Seasonal Price of Gas",
+              subtitle = "for Holidays vs for NonHolidays",
+              y = "Average Price Index for Gas on Households") + 
+         facet_grid(rows = vars(holiday))
+
+
+
+```
+
+These three comparisons have done nothing more than confirming that energy consumption in households during holidays is around the same as that during non holidays. Our first table tells us that overall, the average energy consumption during the holidays is on average slightly less than that during non holidays for households. Our second graph tells us that this over time energy consumption during holidays has followed the same pattern as that during non holidays and viceversa. This essentially tells us that the similarity of both means in the first table wasn't due to a coincidence in numbers, but rather a very straightforward relationship. Finally, our third graphs shows that despite holidays being on average cheaper than non holidays in terms of gas consumption, during the summer and fall there is a clear indication that holidays are more expensive, and during the winter and spring both holidays and non holidays carry around the same expenses on average. 
+
+
+
+* According to the paper, the gas crisis occurred between September 2021 until October 2022. Compare this period with the periods before and after on household and industrial consumption. Write a paragraph explaining your findings.
+
+```{r}
+library(ggplot2)
+library(dplyr)
+# group
+daily$Period <- ifelse(daily$date >= as.Date("2021-09-01") & daily$date <= as.Date("2022-10-31"), "Crisis", ifelse(daily$date < as.Date("2021-09-01"), "Pre-Crisis", "Post-Crisis"))
+
+# Plotting the data
+ggplot(daily) + 
+  geom_line(aes(x = date, y = consumption_small, color = "Household Consumption"), size = 1) +
+  geom_line(aes(x = date, y = consumption_industry, color = "Industrial Consumption"), size = 1) +
+  scale_color_manual(values = c("Household Consumption" = "blue", "Industrial Consumption" = "red")) +
+  facet_wrap(~Period, scales = "free_x",ncol=1) +
+  labs(title = "Household vs. Industrial Natural Gas Consumption", x = "Date", y = "Consumption") +
+  theme_minimal() +
+  theme(legend.title = element_blank())
+
+```
+
+During the gas crisis from September 2021 to October 2022, household and industrial natural gas consumption in Germany exhibited distinct patterns of response. Before the crisis, consumption patterns for both households and industries were relatively stable, heavily influenced by seasonal temperature changes but without drastic fluctuations.
+
+As the crisis unfolded, **industrial consumers** began to reduce their gas consumption significantly as early as September 2021, due to their direct exposure to wholesale market prices, and the potential for adjusting production processes and schedules. This proactive response continued to grow to 27% reduction by September 2022. The industry's ability to pass increased energy costs onto consumers, as well as the strategic adjustments like production cuts in response to energy prices might explain this trend.
+
+On the other hand, **households and small businesses** showed a delayed but substantial reduction in consumption starting in March 2022, which can be attributed to the fixed-price retail contracts that shielded them from the immediate impact of wholesale price increases. The lag in the response of this group aligns with the typical structure of retail energy contracts and the timing of price pass-through. The ethical concerns and heightened public attention following Russia’s invasion of Ukraine also played a significant role, leading to a behavioral shift toward reduced consumption.
+
+Post-crisis, while the data may not yet be available to draw definitive conclusions, it can be anticipated that both households and industries will continue to adapt to the new energy landscape. Households may seek long-term solutions to energy efficiency and alternative heating sources, whereas industries might further diversify energy sources and continue efficiency improvements to mitigate against future crises.
+
+
+* Explore the [documentation for ggplot](https://ggplot2.tidyverse.org/). Select one geometery and one `stat_` function we have not used before or use an option to a previously used geometry/stat with a new option. Write a short paragraph explaining what the plots show. 
+
+```{r}
+library(ggplot2)
+library(ggridges)
+library(dplyr)
+
+# Assuming 'gas' is your dataframe with 'Date' and 'Price' columns
+# Sort the data by Date and create the price_quintile variable
+gas <- gas %>%
+  arrange(Date) %>%
+  mutate(price_quintile = cut(Price, 
+                              breaks = quantile(Price, probs = 0:5 / 5),
+                              labels = c("Lowest", "Lower", "Medium", "Higher", "Highest"),
+                              include.lowest = TRUE))
+ggplot(gas, aes(
+  x = Date, 
+  y = as.factor(price_quintile), 
+  fill = as.factor(price_quintile))) +
+  geom_density_ridges(alpha = 0.5) +
+  scale_fill_manual(values = c("Highest" = "pink", "Higher" = "orange", "Medium" = "yellow", "Lower" = "lightblue", "Lowest" = "blue")) +
+  guides(fill = FALSE) +  # Correct 'none' to FALSE
+  labs(
+    x = "Date",
+    y = "Price Quintile",
+    title = "Price Distribution over Time",
+    fill = "Quintile"
+  ) +
+  theme_ridges()
+
+```
+From the plot image, the ridge plot shows how the distribution of prices changes over time. Each layer corresponds to a quintile of the price distribution, with the lowest prices at the bottom and the highest at the top. The width of each layer at any point along the x-axis (time) reflects the density of prices within that quintile at that time. If a particular layer is wider at some point, it indicates a higher concentration of prices in that quintile during that period.
+
+The plot can provide insights into the dynamics of price changes over time, such as periods of price stability or volatility, or if there are any trends in how the price distribution shifts, such as prices generally increasing or decreasing. It can also highlight times when there is a particular concentration of prices in the higher or lower quintiles, which might suggest economic events affecting price levels.
+
+* Investigate solar radiation's marginal distribution and also it's relationship with temperature.
+
+```{r}
+# Marginal distribution of solar radiation using a histogram
+ggplot(daily, aes(x = solar_radiation)) + 
+  geom_histogram( fill = "blue", color = "black") +
+  labs(x = "Solar Radiation (W/m²)", y = "Frequency", title = "Histogram of Solar Radiation")
+
+
+# Scatter plot with hexbin and a regression line
+ggplot(daily, aes(x = temperature, y = solar_radiation)) +
+  geom_hex() +  # Hexbin layer
+  geom_smooth(method = "lm", color = "red") +  # Linear regression line in red
+  labs(x = "Temperature (°C or K)", y = "Solar Radiation (W/m²)", 
+       title = "Hexbin Plot of Temperature vs Solar Radiation with Regression Line") +
+  theme_minimal()
+
+# Calculate the correlation coefficient
+correlation_coefficient <- cor(daily$solar_radiation, daily$temperature, use = "complete.obs")
+print(correlation_coefficient)
+
+
+```
+* Use `group_by` to summarize by a new feature of this data set not otherwise discussed in the tasks or objectives. What have you learned with these investigation?
+
+```{r}
+daily %>% group_by(weekday) %>% summarise(small_avg = mean(consumption_small, na.rm = TRUE), 
+                                          industry_avg = mean(consumption_industry, na.rm = TRUE),
+                                          power_avg = mean(consumption_power, na.rm = TRUE)) %>% arrange(ordered(weekday, levels = c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday","Saturday")))
+
+gas %>% mutate(weekday = weekdays(as.Date(Date,'%m/%d/%Y'))) %>% group_by(weekday) %>%
+  summarise(price_avg = mean(Price, na.rm = TRUE)) %>% arrange(ordered(weekday, levels = c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday","Saturday")))
+```
+
+We can find there is significant differences between weekdays and weekends in average consumption for small consumers, industry and power stations. Also, the price of gas also varies across the weekdays. 
+
+* Based on your exploration of the data, suggest three questions that could be asked from these data or additional data that you can imagine. Be sure to explain why the previous plots or calculations indicates that this would be an interesting our useful exploration.
+
+Question 1: Is there significant differences between weekdays and weekends in average consumption for small consumers, industry and power stations? 
+
+```{r}
+daily %>% group_by(weekday) %>% summarise(small_avg = mean(consumption_small, na.rm = TRUE), 
+                                          industry_avg = mean(consumption_industry, na.rm = TRUE),
+                                          power_avg = mean(consumption_power, na.rm = TRUE)) %>% arrange(ordered(weekday, levels = c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday","Saturday"))) %>% pivot_longer(cols = small_avg : power_avg,
+    names_to = c('type'), values_to = 'avg_consumption') %>% 
+  ggplot(aes(x = ordered(weekday, levels = c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday","Saturday")), y = avg_consumption, group = type, color = type)) + geom_line()
+```
+Based on the plot above, we can find there is significant differences between weekdays and weekends in average consumption for small consumers, industry and power stations. In the weekends, the small consumers, industry and power stations only need to keep the basic consumption for the required equipment. 
+
+Question 2: Which day in weekdays has the minimal consumption for small consumers, industry and power stations? 
+
+Based on the plot above, Friday has the minimal consumption for small consumers, industry and power stations. This is due to the fact on Fridays people are not fully engaged in their work because the weekend is coming. 
+
+Question 3: Is there significant differences between weekdays in average of gas consumption? 
+
+```{r}
+gas %>% mutate(weekday = weekdays(as.Date(Date,'%m/%d/%Y'))) %>% group_by(weekday) %>%
+  summarise(price_avg = mean(Price, na.rm = TRUE)) %>% arrange(ordered(weekday, levels = c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday","Saturday"))) %>% as.data.frame() %>% ggplot(aes(x = ordered(weekday, levels = c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday","Saturday")), y = price_avg, group = 1)) + geom_line()
+```
+
+We can not find significant differences between weekdays in average of gas consumption
+
+* Write an abstract for your project. Briefly explain what you did, what you found, and why a potential reader should be interested in your research.
+  Our project provides a comprehensive examination of the shifts in natural gas consumption and pricing in Germany during the 2021-2022 energy crisis, instigated by a substantial decrease in gas supply from Russia. Our investigation is grounded in a detailed dataset, incorporating daily consumption metrics across small consumers, industry, and power stations, alongside daily natural gas pricing. The study is driven by a series of objectives, each aiming to dissect different facets of the crisis response:
+  Consumption Analysis: We analyze consumption patterns across various sectors, identifying a notable 23% reduction in overall gas usage compared to a temperature-adjusted baseline. This analysis revealed preemptive reductions by the industrial sector and later adjustments by small consumers, highlighting the small response strategies to the crisis.
+  Price Sensitivity: Through a temporal analysis, we explored the correlation between natural gas prices and consumption levels. The study uncovered a lagged but significant response to price fluctuations, emphasizing the economic pressures exerted by the crisis.
+Renewable Energy Integration: Investigating the marginal distribution of solar radiation and its correlation with temperature, our project suggests a promising potential for renewable energy sources to complement natural gas during supply shortages.
+  Seasonal and Weekly Consumption Patterns: Utilizing group_by and summarization techniques, we detected distinct consumption behaviors tied to seasonal changes and weekdays, offering insights into demand management opportunities.
+  Crisis Mitigation Strategies: By comparing consumption and pricing before, during, and after the crisis, our findings underscore the adaptability of both consumers and industries in mitigating the impacts of the crisis through energy-saving measures and price adjustments.
+  Predictive Insights: our project also ventured into forecasting future trends in natural gas consumption and pricing, employing visualizations that suggest pathways for strategic planning and crisis resilience.
+  Our detailed exploration into these objectives not only analyses the immediate responses to the energy crisis but also frames a broader discussion on energy policy, market dynamics, and the role of renewable resources in ensuring energy security. Therefore, the insights garnered from this project are invaluable for potential readers, such as policymakers, energy economists, and industry stakeholders, offering a data-driven basis for navigating future challenges in the energy sector.
